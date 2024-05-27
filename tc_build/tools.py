@@ -20,10 +20,10 @@ class HostTools:
         self.cxx = self.find_host_cxx()
         self.ld = self.find_host_ld()
         self.ranlib = self.find_host_ranlib()
+        self.llvm_profdata = self.find_host_llvm_profdata()
 
         self.clang_tblgen = None
         self.llvm_bolt = None
-        self.llvm_profdata = None
         self.llvm_tblgen = None
         self.merge_fdata = None
         self.perf2bolt = None
@@ -99,6 +99,12 @@ class HostTools:
 
         if (ranlib := Path(self.cc.parent, 'llvm-ranlib')).exists():
             return ranlib
+
+        return None
+
+    def find_host_llvm_profdata(self):
+        if (llvm_profdata := Path(self.cc.parent, 'llvm-profdata')).exists():
+            return llvm_profdata
 
         return None
 

@@ -21,7 +21,6 @@ DEFAULT_KERNEL_FOR_PGO = (6, 13, 0)
 
 parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
 clone_options = parser.add_mutually_exclusive_group()
-opt_options = parser.add_mutually_exclusive_group()
 
 parser.add_argument('--assertions',
                     help=textwrap.dedent('''\
@@ -100,7 +99,7 @@ parser.add_argument('--bolt',
 
                     '''),
                     action='store_true')
-opt_options.add_argument('--build-stage1-only',
+parser.add_argument('--build-stage1-only',
                          help=textwrap.dedent('''\
                     By default, the script does a multi-stage build: it builds a more lightweight version of
                     LLVM first (stage 1) then uses that build to build the full toolchain (stage 2). This
@@ -150,6 +149,11 @@ parser.add_argument('-D',
 
                     '''),
                     nargs='+')
+parser.add_argument('--final',
+                    help=textwrap.dedent('''\
+                    By default final build step is skipped. Enable this option to enable final build
+                    '''),
+                    action='store_true')
 parser.add_argument('-f',
                     '--full-toolchain',
                     help=textwrap.dedent('''\
@@ -263,7 +267,7 @@ parser.add_argument('-p',
 
                     '''),
                     nargs='+')
-opt_options.add_argument('--pgo',
+parser.add_argument('--pgo',
                          metavar='PGO_BENCHMARK',
                          help=textwrap.dedent('''\
                     Build the final compiler with Profile Guided Optimization, which can often improve compile
@@ -570,17 +574,22 @@ if args.pgo:
         instrumented = LLVMInstrumentedBuilder()
     else:
         instrumented = LLVMSlimInstrumentedBuilder()
+    instrumented.folders.build = Path(build_folder, 'instrumented')
+
+if args.pgo and not args.final:
     instrumented.build_targets = ['all' if args.full_toolchain else 'distribution']
     instrumented.cmake_defines.update(common_cmake_defines)
     # We run the tests on the instrumented stage if the LLVM benchmark was enabled
     instrumented.check_targets = args.check_targets if 'llvm' in args.pgo else None
-    instrumented.folders.build = Path(build_folder, 'instrumented')
     instrumented.folders.source = llvm_folder
     instrumented.projects = final.projects
     instrumented.quiet_cmake = args.quiet_cmake
     instrumented.show_commands = args.show_build_commands
     instrumented.targets = final.targets
-    instrumented.tools = StageTools(Path(bootstrap.folders.build, 'bin'))
+    if args.build_stage1_only:
+        instrumented.tools = host_tools
+    else:
+        instrumented.tools = StageTools(Path(bootstrap.folders.build, 'bin'))
 
     tc_build.utils.print_header('Building LLVM (instrumented)')
     instrumented.configure()
@@ -603,9 +612,9 @@ if args.pgo:
         # only the tools included in the distribution will be available. In
         # that case, use the bootstrap versions, which should not matter much
         # for profiling sake.
-        if not args.full_toolchain:
-            llvm_builder.tools.clang_tblgen = Path(bootstrap.folders.build, 'bin/clang-tblgen')
-            llvm_builder.tools.llvm_tblgen = Path(bootstrap.folders.build, 'bin/llvm-tblgen')
+        # if not args.full_toolchain:
+        #     llvm_builder.tools.clang_tblgen = Path(bootstrap.folders.build, 'bin/clang-tblgen')
+        #     llvm_builder.tools.llvm_tblgen = Path(bootstrap.folders.build, 'bin/llvm-tblgen')
         pgo_builders.append(llvm_builder)
 
     # If the user specified both a full and slim build of the same type, remove
@@ -668,53 +677,56 @@ if args.pgo:
 
     instrumented.generate_profdata()
 
-# Final build
-final.build_targets = args.build_targets
-final.check_targets = args.check_targets
-final.cmake_defines.update(common_cmake_defines)
-final.folders.build = Path(build_folder, 'final')
-final.folders.install = Path(args.install_folder).resolve() if args.install_folder else None
-final.install_targets = args.install_targets
-final.quiet_cmake = args.quiet_cmake
-final.show_commands = args.show_build_commands
+if args.final:
+    # Final build
+    final.build_targets = args.build_targets
+    final.check_targets = args.check_targets
+    final.cmake_defines.update(common_cmake_defines)
+    final.folders.build = Path(build_folder, 'final')
+    final.folders.install = Path(args.install_folder).resolve() if args.install_folder else None
+    final.install_targets = args.install_targets
+    final.quiet_cmake = args.quiet_cmake
+    final.show_commands = args.show_build_commands
 
-if args.lto:
-    final.cmake_defines['LLVM_ENABLE_LTO'] = args.lto.capitalize()
-if args.pgo:
-    final.cmake_defines['LLVM_PROFDATA_FILE'] = Path(instrumented.folders.build, 'profdata.prof')
+    if args.lto:
+        final.cmake_defines['LLVM_ENABLE_LTO'] = args.lto.capitalize()
+    if args.pgo:
+        final.cmake_defines['LLVM_PROFDATA_FILE'] = Path(instrumented.folders.build, 'profdata.prof')
 
-if use_bootstrap:
-    final.tools = StageTools(Path(bootstrap.folders.build, 'bin'))
-else:
-    # If we skipped bootstrapping, we need to check the dependencies now
-    # and pass along certain user options
-    final.check_dependencies()
-    final.ccache = not args.no_ccache
-    final.tools = host_tools
-
-    # If the user requested BOLT but did not specify it in their projects nor
-    # bootstrapped, we need to enable it to get the tools we need.
-    if args.bolt:
-        if not ('all' in final.projects or 'bolt' in final.projects):
-            final.projects.append('bolt')
-        final.tools.llvm_bolt = Path(final.folders.build, 'bin/llvm-bolt')
-        final.tools.merge_fdata = Path(final.folders.build, 'bin/merge-fdata')
-        final.tools.perf2bolt = Path(final.folders.build, 'bin/perf2bolt')
-
-if args.bolt:
-    final.bolt = True
-    final.bolt_builder = LLVMKernelBuilder()
-    final.bolt_builder.folders.build = Path(build_folder, 'linux')
-    final.bolt_builder.folders.source = lsm.location
-    if final.host_target_is_enabled():
-        llvm_targets = [final.host_target()]
+    if use_bootstrap:
+        final.tools = StageTools(Path(bootstrap.folders.build, 'bin'))
     else:
-        llvm_targets = final.targets[0:1]
-    final.bolt_builder.matrix['defconfig'] = llvm_targets
+        # If we skipped bootstrapping, we need to check the dependencies now
+        # and pass along certain user options
+        final.check_dependencies()
+        final.ccache = not args.no_ccache
+        final.tools = host_tools
 
-tc_build.utils.print_header('Building LLVM (final)')
-final.configure()
-final.build()
-final.show_install_info()
+        # If the user requested BOLT but did not specify it in their projects nor
+        # bootstrapped, we need to enable it to get the tools we need.
+        if args.bolt:
+            if not ('all' in final.projects or 'bolt' in final.projects):
+                final.projects.append('bolt')
+            final.tools.llvm_bolt = Path(final.folders.build, 'bin/llvm-bolt')
+            final.tools.merge_fdata = Path(final.folders.build, 'bin/merge-fdata')
+            final.tools.perf2bolt = Path(final.folders.build, 'bin/perf2bolt')
+
+    if args.bolt:
+        final.bolt = True
+        final.bolt_builder = LLVMKernelBuilder()
+        final.bolt_builder.folders.build = Path(build_folder, 'linux')
+        final.bolt_builder.folders.source = lsm.location
+        if final.host_target_is_enabled():
+            llvm_targets = [final.host_target()]
+        else:
+            llvm_targets = final.targets[0:1]
+        final.bolt_builder.matrix['defconfig'] = llvm_targets
+
+    tc_build.utils.print_header('Building LLVM (final)')
+    final.configure()
+    final.build()
+    final.show_install_info()
+else:
+    tc_build.utils.print_header('Final build skipped')
 
 print(f"Script duration: {tc_build.utils.get_duration(script_start)}")
