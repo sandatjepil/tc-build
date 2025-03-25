@@ -11,7 +11,7 @@ err() {
 
 # Environment checker
 msg "Checking environment ..."
-for environment in TELEGRAM_TOKEN TELEGRAM_CHAT GIT_TOKEN BRANCH; do
+for environment in TELEGRAM_TOKEN TELEGRAM_CHAT GIT_TOKEN BRANCH MYUSERNAME MYEMAIL; do
     [ -z "${!environment}" ] && {
         err "- $environment not set!"
         exit 1
@@ -43,17 +43,18 @@ send_file() {
 
 # Building LLVM's
 msg "Building LLVM's ..."
-send_msg "<b>Start build venom Clang from <code>[ $BRANCH ]</code> branch</b>"
+send_msg "<b>Start building Kaleidoscope clang from <code>[ $BRANCH ]</code> branch</b>"
 ./build-llvm.py \
     --defines LLVM_PARALLEL_COMPILE_JOBS="$(nproc)" LLVM_PARALLEL_LINK_JOBS="$(nproc)" CMAKE_C_FLAGS=-O3 CMAKE_CXX_FLAGS=-O3 \
     --install-folder "$HOME_DIR/install" \
-    --no-update \
+    --pgo kernel-defconfig-slim \
+    --lto full \
     --no-ccache \
     --quiet-cmake \
     --ref "$BRANCH" \
     --shallow-clone \
     --targets AArch64 ARM X86 \
-    --vendor-string "Venom"
+    --vendor-string "Kaleidoscope (+PGO, +LTO, +Polly)"
 
 # Check if the final clang binary exists or not
 for file in install/bin/clang-[1-9]*; do
@@ -91,8 +92,8 @@ for bin in $(find install -mindepth 2 -maxdepth 3 -type f -exec file {} \; | gre
 done
 
 # Git config
-git config --global user.name "Kneba"
-git config --global user.email "abenkenary3@gmail.com"
+git config --global user.name "$MYUSERNAME"
+git config --global user.email "$MYEMAIL"
 
 # Get Clang Info
 pushd "$HOME_DIR"/src/llvm-project || exit
@@ -101,10 +102,9 @@ short_llvm_commit="$(cut -c-8 <<<"$llvm_commit")"
 popd || exit
 llvm_commit_url="https://github.com/llvm/llvm-project/commit/$short_llvm_commit"
 clang_version="$("$HOME_DIR"/install/bin/clang --version | head -n1 | cut -d' ' -f4)"
-build_date="$(TZ=Asia/Jakarta date +"%Y-%m-%d")"
-tags="venom-clang-$clang_version-release"
-file="venom-clang-$clang_version.tar.gz"
-clang_link="https://github.com/Kneba/venom-clang/releases/download/$tags/$file"
+build_date="$(TZ=Asia/Jakarta date +"%d-%m-%Y")"
+tags="$clang_version-release"
+file="kaleidoscope-clang-$clang_version.tar.gz"
 
 # Get binutils version
 binutils_version=$(grep "LATEST_BINUTILS_RELEASE" build-binutils.py)
@@ -123,20 +123,8 @@ pushd "$HOME_DIR"/install || exit
 tar -czvf ../"$file" .
 popd || exit
 
-# Push
-git clone "https://Kneba:$GIT_TOKEN@github.com/Kneba/venom-clang.git" rel_repo
-pushd rel_repo || exit
-if [ -d "$BRANCH" ]; then
-    echo "$clang_link" >"$BRANCH"/link.txt
-    cp -r "$HOME_DIR"/install/README.md "$BRANCH"
-else
-    mkdir -p "$BRANCH"
-    echo "$clang_link" >"$BRANCH"/link.txt
-    cp -r "$HOME_DIR"/install/README.md "$BRANCH"
-fi
-git add .
-git commit -asm "venom-clang-$clang_version: $(TZ=Asia/Jakarta date +"%Y%m%d")"
-git push -f origin main
+git clone "https://sandatjepil:$GIT_TOKEN@github.com/sandatjepil/tc-build.git" rel_repo
+cd rel_repo
 
 # Check tags already exists or not
 overwrite=y
@@ -148,15 +136,15 @@ failed=n
 if [ "$overwrite" == "y" ]; then
     ./github-release edit \
         --security-token "$GIT_TOKEN" \
-        --user "Kneba" \
-        --repo "venom-clang" \
+        --user "sandatjepil" \
+        --repo "tc-build" \
         --tag "$tags" \
         --description "$(cat "$HOME_DIR"/install/README.md)"
 
     ./github-release upload \
         --security-token "$GIT_TOKEN" \
-        --user "Kneba" \
-        --repo "venom-clang" \
+        --user "sandatjepil" \
+        --repo "tc-build" \
         --tag "$tags" \
         --name "$file" \
         --file "$HOME_DIR/$file" \
@@ -164,15 +152,15 @@ if [ "$overwrite" == "y" ]; then
 else
     ./github-release release \
         --security-token "$GIT_TOKEN" \
-        --user "Kneba" \
-        --repo "venom-clang" \
+        --user "sandatjepil" \
+        --repo "tc-build" \
         --tag "$tags" \
         --description "$(cat "$HOME_DIR"/install/README.md)"
 
     ./github-release upload \
         --security-token "$GIT_TOKEN" \
-        --user "Kneba" \
-        --repo "venom-clang" \
+        --user "sandatjepil" \
+        --repo "tc-build" \
         --tag "$tags" \
         --name "$file" \
         --file "$HOME_DIR/$file" || failed=y
@@ -184,8 +172,8 @@ while [ "$failed" == "y" ]; do
     msg "Upload again"
     ./github-release upload \
         --security-token "$GIT_TOKEN" \
-        --user "Kneba" \
-        --repo "venom-clang" \
+        --user "sandatjepil" \
+        --repo "tc-build" \
         --tag "$tags" \
         --name "$file" \
         --file "$HOME_DIR/$file" \
@@ -201,8 +189,8 @@ send_msg "
 * <code>$clang_version</code>
 <b>Binutils Version : </b>
 * <code>$binutils_version</code>
-<b>Compile Based : </b>
-* <a href='$llvm_commit_url'>$llvm_commit_url</a>
-<b>Push Repository : </b>
-* <a href='https://github.com/Kneba/venom-clang.git'>venom-clang</a>
+<b>Compile Base : </b>
+* <a href='$llvm_commit_url'>$short_llvm_commit</a>
+<b>Download Link : </b>
+* <a href='https://github.com/sandatjepil/tc-build/releases'>Releases</a>
 <b>-------------------------------------------------</b>"

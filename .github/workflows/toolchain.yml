@@ -4,7 +4,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ghcr.io/neutron-projects/docker-image:arch
     environment: Actions
     steps:
     - uses: actions/checkout@v4
@@ -12,8 +12,10 @@ jobs:
       run: bash ci.sh deps
     - name: Deploy builder
       env:
+          MYUSERNAME: ${{ secrets.MYUSERNAME }}
+          MYEMAIL: ${{ secrets.MYEMAIL }}
           BRANCH: ${{ secrets.BRANCH }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT }}
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-      run: chmod +x ./build.sh && bash build.sh
+      run: bash build.sh
