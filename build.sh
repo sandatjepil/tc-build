@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Copyright ©2022-2024 XSans0
 
+TZ="Asia/Jakarta"
 # Function to show an informational message
 msg() {
     echo -e "\e[1;32m$*\e[0m"
