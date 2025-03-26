@@ -4,7 +4,7 @@ on:
 
 jobs:
   build:
-    runs-on: ghcr.io/neutron-projects/docker-image:arch
+    runs-on: ubuntu:22.04
     environment: Actions
     steps:
     - uses: actions/checkout@v4

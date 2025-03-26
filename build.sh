@@ -48,14 +48,13 @@ send_msg "<b>Start building Kaleidoscope clang from <code>[ $BRANCH ]</code> bra
 ./build-llvm.py \
     --defines LLVM_PARALLEL_COMPILE_JOBS="$(nproc)" LLVM_PARALLEL_LINK_JOBS="$(nproc)" CMAKE_C_FLAGS=-O3 CMAKE_CXX_FLAGS=-O3 \
     --install-folder "$HOME_DIR/install" \
-    --pgo kernel-defconfig-slim \
-    --lto full \
+    --lto thin \
     --no-ccache \
     --quiet-cmake \
     --ref "$BRANCH" \
     --shallow-clone \
     --targets AArch64 ARM X86 \
-    --vendor-string "Kaleidoscope (+PGO, +LTO, +Polly)"
+    --vendor-string "Kaleidoscope (+ThinLTO, +Polly)"
 
 # Check if the final clang binary exists or not
 for file in install/bin/clang-[1-9]*; do
