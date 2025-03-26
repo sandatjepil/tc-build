@@ -102,8 +102,8 @@ short_llvm_commit="$(cut -c-8 <<<"$llvm_commit")"
 popd || exit
 llvm_commit_url="https://github.com/llvm/llvm-project/commit/$short_llvm_commit"
 clang_version="$("$HOME_DIR"/install/bin/clang --version | head -n1 | cut -d' ' -f4)"
-build_date="$(TZ=Asia/Jakarta date +"%d-%m-%Y")"
-tags="$clang_version-release"
+build_date="$(date +"%d-%m-%Y")"
+tags="$clang_version-$build_date-release"
 file="kaleidoscope-clang-$clang_version.tar.gz"
 
 # Get binutils version
@@ -111,24 +111,9 @@ binutils_version=$(grep "LATEST_BINUTILS_RELEASE" build-binutils.py)
 binutils_version=$(echo "$binutils_version" | grep -oP '\(\s*\K\d+,\s*\d+,\s*\d+' | tr -d ' ')
 binutils_version=$(echo "$binutils_version" | tr ',' '.')
 
-# Create simple info
+# Create tar
 pushd "$HOME_DIR"/install || exit
-{
-    echo "# Quick Info
-* Build Date : $build_date
-* Clang Version : $clang_version
-* Binutils Version : $binutils_version
-* Compiled Based : $llvm_commit_url"
-} >>README.md
 tar -czvf ../"$file" .
-popd || exit
-
-git clone "https://sandatjepil:$GIT_TOKEN@github.com/sandatjepil/tc-build.git" rel_repo
-cd rel_repo
-
-# Check tags already exists or not
-overwrite=y
-git tag -l | grep "$tags" || overwrite=n
 popd || exit
 
 # Upload to github release

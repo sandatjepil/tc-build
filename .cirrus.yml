@@ -1,0 +1,18 @@
+env:
+  - MYEMAIL: "ENCRYPTED[894e9002ff3230178c5066dc85efe48181bf4454e5a45d466e119bab58118ffb1fbefe162f2d17800f64ce7ca63f0169]"
+  - MYUSERNAME: "ENCRYPTED[c4ac111c0561bc252b09e63511a3b1a6a9e12dc80789e5857043b1340d52878d42483c6113bbb14b6699a5c36639d73b]"
+  - GIT_TOKEN: "ENCRYPTED[7a1951cb44927096efd3ac5bf62f95c01d902f47aed32728249fecc8badcb971d2a496fdad771df9b94e3b3d835a9af5]"
+  - TELEGRAM_TOKEN: "ENCRYPTED[3d936dc78c3e52b71a6d91af2bc24b47d99312130e9b6a5318bb2fc68dd871d91ec3e09b8507e643e641ef2afec83046]"
+  - TELEGRAM_CHAT: "ENCRYPTED[2f5897736e9f36678e18790f91c9d2775c6ea5851fc64016858ff87a976995701a6856bdac78dc488bdc8260b53df507]"
+  - BRANCH: release/20.x
+
+task:
+  name: TC Build
+  timeout_in: 120m
+  container:
+    image: ghcr.io/neutron-projects/docker-image:arch
+    cpu: 8
+    memory: 32G
+  
+  Deploy_script:
+    - bash build.sh
