@@ -1,181 +1,145 @@
 #!/usr/bin/env bash
-# Copyright ©2022-2024 XSans0
+export TZ="Asia/Jakarta"
+export LLVM_NAME="Kaleidoscope"
+export STABLE_TAG="llvmorg-20.1.1"
+export INSTALL="${PWD}/install"
+export CHAT_ID="$TELEGRAM_CHAT"
+export BUILD_DATE="$(date +%Y%m%d)"
+export BUILD_DAY="$(date "+%d %B %Y")"
+export BUILD_TAG="$(date +%Y%m%d-%H%M-%Z)"
+export NPROC="$(nproc --all)"
+export CUSTOM_FLAGS="
+  LLVM_PARALLEL_TABLEGEN_JOBS=${NPROC}
+  LLVM_PARALLEL_COMPILE_JOBS=${NPROC}
+  LLVM_PARALLEL_LINK_JOBS=${NPROC}
+  LLVM_OPTIMIZED_TABLEGEN=ON
+  CMAKE_C_FLAGS='-O3 -pipe -ffunction-sections -fdata-sections -fno-plt -fmerge-all-constants -fomit-frame-pointer -funroll-loops -falign-functions=64 -march=haswell -mtune=diamondrapids -mllvm -polly -mllvm -polly-position=early -mllvm -polly-vectorizer=stripmine -mllvm -polly-run-dce'
+  CMAKE_CXX_FLAGS='-O3 -pipe -ffunction-sections -fdata-sections -fno-plt -fmerge-all-constants -fomit-frame-pointer -funroll-loops -falign-functions=64 -march=haswell -mtune=diamondrapids -mllvm -polly -mllvm -polly-position=early -mllvm -polly-vectorizer=stripmine -mllvm -polly-run-dce'
+  CMAKE_EXE_LINKER_FLAGS='-Wl,-O3,--lto-O3,--lto-CGO3,--gc-sections,--strip-debug'
+  CMAKE_MODULE_LINKER_FLAGS='-Wl,-O3,--lto-O3,--lto-CGO3,--gc-sections,--strip-debug'
+  CMAKE_SHARED_LINKER_FLAGS='-Wl,-O3,--lto-O3,--lto-CGO3,--gc-sections,--strip-debug'
+  CMAKE_STATIC_LINKER_FLAGS='-Wl,-O3,--lto-O3,--lto-CGO3,--gc-sections,--strip-debug'
+  "
 
-TZ="Asia/Jakarta"
-# Function to show an informational message
-msg() {
-    echo -e "\e[1;32m$*\e[0m"
-}
-err() {
-    echo -e "\e[1;41$*\e[0m"
-}
-
-# Environment checker
-msg "Checking environment ..."
-for environment in TELEGRAM_TOKEN TELEGRAM_CHAT GIT_TOKEN BRANCH MYUSERNAME MYEMAIL; do
-    [ -z "${!environment}" ] && {
-        err "- $environment not set!"
-        exit 1
-    }
+FINAL=false
+RELEASE=false
+for ARGS in $@; do
+  case $ARGS in
+  final)
+    FINAL=true
+    ;;
+  release)
+    RELEASE=true
+    ;;
+  esac
 done
-msg "- All environment variables are set."
+export FINAL RELEASE
 
-# Get home directory
-HOME_DIR="$(pwd)"
-
-# Telegram Setup
-git clone --depth=1 https://github.com/XSans0/Telegram Telegram
-
-TELEGRAM="$HOME_DIR/Telegram/telegram"
-send_msg() {
-    "${TELEGRAM}" -H -D \
-        "$(
-            for POST in "${@}"; do
-                echo "${POST}"
-            done
-        )"
+send_info() {
+  curl -s -X POST https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage \
+    -d chat_id="${CHAT_ID}" \
+    -d "parse_mode=html" \
+    -d text="<b>${1}</b><code>${2}</code>" >/dev/null 2>&1
 }
 
 send_file() {
-    "${TELEGRAM}" -H \
-        -f "$1" \
-        "$2"
+  curl -s -X POST https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument \
+    -F document=@"${2}" \
+    -F chat_id="${CHAT_ID}" \
+    -F "parse_mode=html" \
+    -F caption="${1}" >/dev/null 2>&1
 }
 
-# Building LLVM's
-msg "Building LLVM's ..."
-send_msg "<b>Start building Kaleidoscope clang from <code>[ $BRANCH ]</code> branch</b>"
-./build-llvm.py \
-    --defines LLVM_PARALLEL_COMPILE_JOBS="$(nproc)" LLVM_PARALLEL_LINK_JOBS="$(nproc)" CMAKE_C_FLAGS=-O3 CMAKE_CXX_FLAGS=-O3 \
-    --install-folder "$HOME_DIR/install" \
+build_llvm() {
+  send_info "GitHub Action : " "Building LLVM . . ."
+  BUILD_START=$(date +"%s")
+
+  if ${FINAL}; then
+    ADD="${ADD} --final"
+  fi
+
+  if ${RELEASE}; then
+    ADD="${ADD} --ref ${STABLE_TAG}"
+  fi
+
+  ./build-llvm.py ${ADD} \
+    --build-type "Release" \
+    --build-stage1-only \
+    --defines "${CUSTOM_FLAGS}" \
+    --install-folder "${INSTALL}" \
     --lto thin \
-    --no-ccache \
-    --quiet-cmake \
-    --ref "$BRANCH" \
+    --pgo llvm \
+    --projects clang lld polly \
     --shallow-clone \
     --targets AArch64 ARM X86 \
-    --vendor-string "Kaleidoscope (+ThinLTO, +Polly)"
+    --no-update \
+    --vendor-string "${LLVM_NAME}" |& tee -a build.log
+  BUILD_END=$(date +"%s")
+  DIFF=$((BUILD_END - BUILD_START))
 
-# Check if the final clang binary exists or not
-for file in install/bin/clang-[1-9]*; do
-    if [ -e "$file" ]; then
-        msg "LLVM's build successful"
-    else
-        err "LLVM's build failed!"
-        send_msg "LLVM's build failed!"
-        exit
-    fi
-done
+  # Check LLVM files
+  if [ -f ${INSTALL}/bin/clang ] || [ -f ${PWD}/build/llvm/instrumented/profdata.prof ]; then
+    send_info "GitHub Action : " "LLVM compilation finished ! ! !"
+    send_info "Time taken : " "$((DIFF / 60))m $((DIFF % 60))s"
+  else
+    send_info "GitHub Action : " "LLVM compilation failed ! ! !"
+    send_file "LLVM build.log" ./build.log
+    exit 1
+  fi
+}
 
-# Build binutils
-msg "Build binutils ..."
-./build-binutils.py \
-    --install-folder "$HOME_DIR/install" \
-    --targets arm aarch64 x86_64
+build_zstd() {
+  git clone https://github.com/facebook/zstd -b v1.5.7 --depth=1
+  cd zstd
+  cmake build/cmake -DCMAKE_INSTALL_PREFIX="${INSTALL}/.zstd" |& tee -a build.log
+  make -j${NPROC} |& tee -a build.log
+  make install -j${NPROC} |& tee -a build.log
+  cd -
+}
 
-# Remove unused products
-rm -fr install/include
-rm -f install/lib/*.a install/lib/*.la
+strip_binaries() {
+  find ${INSTALL} -type f -exec file {} \; >.file-idx
+  cp ${INSTALL}/bin/llvm-objcopy ./strip
+  grep "not strip" .file-idx |
+    tr ':' ' ' | awk '{print $1}' |
+    while read -r file; do ./strip --strip-all-gnu "${file}"; done
 
-# Strips remaining products
-for f in $(find install -type f -exec file {} \; | grep 'not stripped' | awk '{print $1}'); do
-    strip -s "${f::-1}"
-done
+  # clean unused files
+  rm -rf strip .file-idx
+}
 
-# Set executable rpaths so setting LD_LIBRARY_PATH isn't necessary
-for bin in $(find install -mindepth 2 -maxdepth 3 -type f -exec file {} \; | grep 'ELF .* interpreter' | awk '{print $1}'); do
-    # Remove last character from file output (':')
-    bin="${bin::-1}"
+git_release() {
+  CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
+  MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
+  send_info "GitHub Action : " "Release into GitHub . . ."
+  send_info "Clang Version : " "${CLANG_VERSION}"
+  cd ${INSTALL}
+  tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
+  cd ..
+  git config --global user.name github-actions[bot]
+  git config --global user.email github-actions[bot]@users.noreply.github.com
+  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/purrrslitterbox/clang-releases.git clang -b main
+  cd clang
+  cat README |
+    sed s/LLVM_VERSION/${CLANG_VERSION}-${BUILD_DATE}/g |
+    sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g >README.md
+  git commit --allow-empty -asm "${MESSAGE}"
+  git push origin main
+  cp ${INSTALL}/clang.tar.zst .
+  hub release create -a clang.tar.zst -m "${MESSAGE}" ${BUILD_TAG}
+  send_info "GitHub Action : " "Toolchain released ! ! !"
+  cd ..
+}
 
-    echo "$bin"
-    patchelf --set-rpath "$DIR/../lib" "$bin"
-done
-
-# Git config
-git config --global user.name "$MYUSERNAME"
-git config --global user.email "$MYEMAIL"
-
-# Get Clang Info
-pushd "$HOME_DIR"/src/llvm-project || exit
-llvm_commit="$(git rev-parse HEAD)"
-short_llvm_commit="$(cut -c-8 <<<"$llvm_commit")"
-popd || exit
-llvm_commit_url="https://github.com/llvm/llvm-project/commit/$short_llvm_commit"
-clang_version="$("$HOME_DIR"/install/bin/clang --version | head -n1 | cut -d' ' -f4)"
-build_date="$(date +"%d-%m-%Y")"
-tags="$clang_version-$build_date-release"
-file="kaleidoscope-clang-$clang_version.tar.gz"
-
-# Get binutils version
-binutils_version=$(grep "LATEST_BINUTILS_RELEASE" build-binutils.py)
-binutils_version=$(echo "$binutils_version" | grep -oP '\(\s*\K\d+,\s*\d+,\s*\d+' | tr -d ' ')
-binutils_version=$(echo "$binutils_version" | tr ',' '.')
-
-# Create tar
-pushd "$HOME_DIR"/install || exit
-tar -czvf ../"$file" .
-popd || exit
-
-# Upload to github release
-failed=n
-if [ "$overwrite" == "y" ]; then
-    ./github-release edit \
-        --security-token "$GIT_TOKEN" \
-        --user "sandatjepil" \
-        --repo "tc-build" \
-        --tag "$tags" \
-        --description "$(cat "$HOME_DIR"/install/README.md)"
-
-    ./github-release upload \
-        --security-token "$GIT_TOKEN" \
-        --user "sandatjepil" \
-        --repo "tc-build" \
-        --tag "$tags" \
-        --name "$file" \
-        --file "$HOME_DIR/$file" \
-        --replace || failed=y
-else
-    ./github-release release \
-        --security-token "$GIT_TOKEN" \
-        --user "sandatjepil" \
-        --repo "tc-build" \
-        --tag "$tags" \
-        --description "$(cat "$HOME_DIR"/install/README.md)"
-
-    ./github-release upload \
-        --security-token "$GIT_TOKEN" \
-        --user "sandatjepil" \
-        --repo "tc-build" \
-        --tag "$tags" \
-        --name "$file" \
-        --file "$HOME_DIR/$file" || failed=y
+TOTAL_START=$(date +"%s")
+send_info "Date : " "${BUILD_DAY}"
+send_info "GitHub Action : " "Toolchain compilation started . . ."
+build_llvm
+if ${FINAL}; then
+  build_zstd
+  strip_binaries
+  git_release
 fi
-
-# Handle uploader if upload failed
-while [ "$failed" == "y" ]; do
-    failed=n
-    msg "Upload again"
-    ./github-release upload \
-        --security-token "$GIT_TOKEN" \
-        --user "sandatjepil" \
-        --repo "tc-build" \
-        --tag "$tags" \
-        --name "$file" \
-        --file "$HOME_DIR/$file" \
-        --replace || failed=y
-done
-
-# Send message to telegram
-send_msg "
-<b>----------------- Quick Info -----------------</b>
-<b>Build Date : </b>
-* <code>$build_date</code>
-<b>Clang Version : </b>
-* <code>$clang_version</code>
-<b>Binutils Version : </b>
-* <code>$binutils_version</code>
-<b>Compile Base : </b>
-* <a href='$llvm_commit_url'>$short_llvm_commit</a>
-<b>Download Link : </b>
-* <a href='https://github.com/sandatjepil/tc-build/releases'>Releases</a>
-<b>-------------------------------------------------</b>"
+TOTAL_END=$(date +"%s")
+DIFF=$((TOTAL_END - TOTAL_START))
+send_info "Total CI operation : " "$((DIFF / 60))m $((DIFF % 60))"
