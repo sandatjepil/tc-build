@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 export TZ="Asia/Jakarta"
 export LLVM_NAME="Kaleidoscope"
-export STABLE_TAG="llvmorg-20.1.1"
+export STABLE_TAG="llvmorg-19.1.7"
 export INSTALL="${PWD}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
 export BUILD_DATE="$(date +%Y%m%d)"
@@ -118,12 +118,10 @@ git_release() {
   cd ..
   git config --global user.name github-actions[bot]
   git config --global user.email github-actions[bot]@users.noreply.github.com
-  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/purrrslitterbox/clang-releases.git clang -b main
+  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-releases.git clang -b main
   cd clang
-  cat README |
-    sed s/LLVM_VERSION/${CLANG_VERSION}-${BUILD_DATE}/g |
-    sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g >README.md
-  git commit --allow-empty -asm "${MESSAGE}"
+  cat README | sed s/LLVM_VERSION/${CLANG_VERSION}-${BUILD_DATE}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
+  git add . && git commit --allow-empty -sm "${MESSAGE}"
   git push origin main
   cp ${INSTALL}/clang.tar.zst .
   hub release create -a clang.tar.zst -m "${MESSAGE}" ${BUILD_TAG}
