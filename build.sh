@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 export LLVM_NAME="Kaleidoscope"
 export STABLE_TAG="main"
-export INSTALL="${PWD}/install"
+export HOME_DIR="$(pwd)"
+export INSTALL="${HOME_DIR}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
 export BUILD_DATE="$(date "+%Y%m%d")"
 export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
@@ -50,9 +51,6 @@ send_file() {
 }
 
 build_llvm() {
-  send_info "GitHub Action : " "Building LLVM . . ."
-  BUILD_START=$(date +"%s")
-
   if ${FINAL}; then
     ADD="${ADD} --final"
   fi
@@ -73,15 +71,14 @@ build_llvm() {
     --targets AArch64 ARM X86 \
     --no-update \
     --vendor-string "${LLVM_NAME}" |& tee -a build.log
-  BUILD_END=$(date +"%s")
-  DIFF=$((BUILD_END - BUILD_START))
 
   # Check LLVM files
-  if [ -f ${INSTALL}/bin/clang ] || [ -f ${PWD}/build/llvm/instrumented/profdata.prof ]; then
-    send_info "GitHub Action : " "LLVM compilation finished ! ! !"
-    send_info "Time taken : " "$((DIFF / 60))m $((DIFF % 60))s"
+  if [ -f ${INSTALL}/bin/clang ]; then
+    send_info "Action : " "LLVM compilation finished ! ! !"
+  elif [ -f ${HOME_DIR}/build/llvm/instrumented/profdata.prof ]; then
+    send_info "Action : " "Instrumented LLVM compilation finished ! ! !"
   else
-    send_info "GitHub Action : " "LLVM compilation failed ! ! !"
+    send_info "Action : " "LLVM compilation failed ! ! !"
     send_file "LLVM build.log" ./build.log
     exit 1
   fi
@@ -110,8 +107,6 @@ strip_binaries() {
 git_release() {
 CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
 MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
-send_info "GitHub Action : " "Release into GitHub . . ."
-send_info "Clang Version : " "${CLANG_VERSION}"
 cd ${INSTALL}
 tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
 cd ..
@@ -121,24 +116,20 @@ git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-r
 cd clang
 cat README | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
 echo "https://github.com/PurrrsLitterbox/clang-releases/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
+send_info "Date : " "${BUILD_DAY}"
+send_info "Action : " "Release into GitHub . . ."
+send_info "Clang Version : " "${CLANG_VERSION}"
 git add . && git commit --allow-empty -sm "${MESSAGE}"
 git push origin main
 cp ${INSTALL}/clang.tar.zst .
-hub release create -a clang.tar.zst -m "${MESSAGE}
-$(cat README.md)" ${BUILD_TAG}
-send_info "GitHub Action : " "Toolchain released ! ! !"
+hub release create -a clang.tar.zst -m "${MESSAGE}" ${BUILD_TAG}
+send_info "Action : " "Toolchain released ! ! !"
 cd ..
 }
 
-TOTAL_START=$(date +"%s")
-send_info "Date : " "${BUILD_DAY}"
-send_info "GitHub Action : " "Toolchain compilation started . . ."
 build_llvm
 if ${FINAL}; then
   build_zstd
   strip_binaries
   git_release
 fi
-TOTAL_END=$(date +"%s")
-DIFF=$((TOTAL_END - TOTAL_START))
-send_info "Total CI operation : " "$((DIFF / 60))m $((DIFF % 60))"
