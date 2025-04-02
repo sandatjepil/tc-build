@@ -105,31 +105,34 @@ strip_binaries() {
 }
 
 git_release() {
-CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
-MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
-cd ${INSTALL}
-tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
-cd ..
-git config --global user.name github-actions[bot]
-git config --global user.email github-actions[bot]@users.noreply.github.com
-git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-releases.git clang -b main
-cd clang
-cat README | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
-echo "https://github.com/PurrrsLitterbox/clang-releases/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
-send_info "Date : " "${BUILD_DAY}"
-send_info "Action : " "Release into GitHub . . ."
-send_info "Clang Version : " "${CLANG_VERSION}"
-git add . && git commit --allow-empty -sm "${MESSAGE}"
-git push origin main
-cp ${INSTALL}/clang.tar.zst .
-hub release create -a clang.tar.zst -m "${MESSAGE}" ${BUILD_TAG}
-send_info "Action : " "Toolchain released ! ! !"
-cd ..
+  CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
+  MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
+  cd ${INSTALL}
+  # tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
+  tar -I "zstd --ultra -22 -T0" -cf clang.tar.zst *
+  cd ..
+  git config --global user.name github-actions[bot]
+  git config --global user.email github-actions[bot]@users.noreply.github.com
+  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-releases.git clang -b main
+  cd clang
+  cat README | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
+  echo "https://github.com/PurrrsLitterbox/clang-releases/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
+  send_info "Date : " "${BUILD_DAY}"
+  send_info "Action : " "Release into GitHub . . ."
+  send_info "Clang Version : " "${CLANG_VERSION}"
+  git add . && git commit --allow-empty -sm "${MESSAGE}"
+  git push origin main
+  cp ${INSTALL}/clang.tar.zst .
+  hub release create -a clang.tar.zst -m "${MESSAGE}
+
+$(cat README.md)" "${BUILD_TAG}"
+  send_info "Action : " "Toolchain released ! ! !"
+  cd ..
 }
 
 build_llvm
 if ${FINAL}; then
-  build_zstd
+  # build_zstd
   strip_binaries
   git_release
 fi

@@ -6,7 +6,7 @@ env:
 container:
   image: sandatjepil/build:archlinux
   cpu: 8
-  memory: 16G
+  memory: 32G
 
 profile_task:
   name: Build LLVM (profile)
