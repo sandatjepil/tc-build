@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-export TZ="Asia/Jakarta"
 export LLVM_NAME="Kaleidoscope"
-export STABLE_TAG="llvmorg-19.1.7"
+export STABLE_TAG="main"
 export INSTALL="${PWD}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
-export BUILD_DATE="$(date +%Y%m%d)"
-export BUILD_DAY="$(date "+%d %B %Y")"
-export BUILD_TAG="$(date +%Y%m%d-%H%M-%Z)"
+export BUILD_DATE="$(date "+%Y%m%d")"
+export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
+export BUILD_TAG="$(date "+%Y%m%d-%H%M-%Z")"
 export NPROC="$(nproc --all)"
 export CUSTOM_FLAGS="
   LLVM_PARALLEL_TABLEGEN_JOBS=${NPROC}
@@ -109,24 +108,26 @@ strip_binaries() {
 }
 
 git_release() {
-  CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
-  MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
-  send_info "GitHub Action : " "Release into GitHub . . ."
-  send_info "Clang Version : " "${CLANG_VERSION}"
-  cd ${INSTALL}
-  tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
-  cd ..
-  git config --global user.name github-actions[bot]
-  git config --global user.email github-actions[bot]@users.noreply.github.com
-  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-releases.git clang -b main
-  cd clang
-  cat README | sed s/LLVM_VERSION/${CLANG_VERSION}-${BUILD_DATE}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
-  git add . && git commit --allow-empty -sm "${MESSAGE}"
-  git push origin main
-  cp ${INSTALL}/clang.tar.zst .
-  hub release create -a clang.tar.zst -m "${MESSAGE}" ${BUILD_TAG}
-  send_info "GitHub Action : " "Toolchain released ! ! !"
-  cd ..
+CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
+MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
+send_info "GitHub Action : " "Release into GitHub . . ."
+send_info "Clang Version : " "${CLANG_VERSION}"
+cd ${INSTALL}
+tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
+cd ..
+git config --global user.name github-actions[bot]
+git config --global user.email github-actions[bot]@users.noreply.github.com
+git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-releases.git clang -b main
+cd clang
+cat README | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
+echo "https://github.com/PurrrsLitterbox/clang-releases/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
+git add . && git commit --allow-empty -sm "${MESSAGE}"
+git push origin main
+cp ${INSTALL}/clang.tar.zst .
+hub release create -a clang.tar.zst -m "${MESSAGE}
+$(cat README.md)" ${BUILD_TAG}
+send_info "GitHub Action : " "Toolchain released ! ! !"
+cd ..
 }
 
 TOTAL_START=$(date +"%s")
