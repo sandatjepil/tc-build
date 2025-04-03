@@ -7,7 +7,7 @@ export CHAT_ID="$TELEGRAM_CHAT"
 export BUILD_DATE="$(date "+%Y%m%d")"
 export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
 export BUILD_TAG="$(date "+%Y%m%d-%H%M-%Z")"
-export NPROC="$(nproc --all)"
+export NPROC=8
 export CUSTOM_FLAGS="
   LLVM_PARALLEL_TABLEGEN_JOBS=${NPROC}
   LLVM_PARALLEL_COMPILE_JOBS=${NPROC}
@@ -61,11 +61,10 @@ build_llvm() {
 
   ./build-llvm.py ${ADD} \
     --build-type "Release" \
-    --build-stage1-only \
     --defines "${CUSTOM_FLAGS}" \
     --install-folder "${INSTALL}" \
     --lto thin \
-    --pgo llvm \
+    --pgo kernel-defconfig-slim \
     --projects clang lld polly \
     --shallow-clone \
     --targets AArch64 ARM X86 \
@@ -75,7 +74,7 @@ build_llvm() {
   # Check LLVM files
   if [ -f ${INSTALL}/bin/clang ]; then
     send_info "Action : " "LLVM compilation finished ! ! !"
-  elif [ -f ${HOME_DIR}/build/llvm/instrumented/profdata.prof ]; then
+  elif [ "$FINAL" = "false" ] && [ -n "$(ls -A ${HOME_DIR}/build/llvm/instrumented 2>/dev/null)" ]; then
     send_info "Action : " "Instrumented LLVM compilation finished ! ! !"
   else
     send_info "Action : " "LLVM compilation failed ! ! !"

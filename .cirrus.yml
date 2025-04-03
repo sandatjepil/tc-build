@@ -13,10 +13,11 @@ profile_task:
   timeout_in: 120m
   script:
     - ./build.sh release
-    - find build/llvm/instrumented -type f ! -name 'profdata.prof' -delete
   profdata_cache:
-    folder: build/llvm/instrumented
-    folder: src/llvm-project
+    folders: 
+      - build/llvm/bootstrap
+      - build/llvm/instrumented
+      - src/llvm-project
     fingerprint_key: $CIRRUS_BUILD_ID
 
 final_task:
@@ -25,8 +26,10 @@ final_task:
   name: Build LLVM (final)
   timeout_in: 120m
   profdata_cache:
-    folder: build/llvm/instrumented
-    folder: src/llvm-project
+    folders:
+      - build/llvm/bootstrap
+      - build/llvm/instrumented
+      - src/llvm-project
     fingerprint_key: $CIRRUS_BUILD_ID
   script:
     - ./build.sh release final
