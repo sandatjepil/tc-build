@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-export LLVM_NAME="Kaleidoscope"
-export STABLE_TAG="main"
+export LLVM_NAME="Kaleidoscope (+PGO, +ThinLTO, +Polly)"
+export STABLE_TAG="llvmorg-20.1.2"
 export HOME_DIR="$(pwd)"
 export INSTALL="${HOME_DIR}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
@@ -49,6 +49,11 @@ send_file() {
     -F "parse_mode=html" \
     -F caption="${1}" >/dev/null 2>&1
 }
+
+if [ "$FINAL" = "false" ]; then
+  send_info "Date: " "$BUILD_DAY"
+  send_info "Action: " "LLVM Compilation Started"
+fi
 
 build_llvm() {
   if ${FINAL}; then
@@ -104,7 +109,8 @@ strip_binaries() {
 }
 
 git_release() {
-  CLANG_VERSION="$(${INSTALL}/bin/clang --version | head -n1 | cut -d ' ' -f4)"
+  CLANG_VERSION="$(${INSTALL}/bin/clang --version | grep -oP '\d+\.\d+\.\d+')"
+  GLIBCVERSION=$(ldd --version | grep -oP '\d+\.\d+')
   MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
   cd ${INSTALL}
   # tar -I"${INSTALL}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
@@ -112,11 +118,10 @@ git_release() {
   cd ..
   git config --global user.name github-actions[bot]
   git config --global user.email github-actions[bot]@users.noreply.github.com
-  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/clang-releases.git clang -b main
+  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/LLVM-stable.git clang -b main
   cd clang
-  cat README | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
-  echo "https://github.com/PurrrsLitterbox/clang-releases/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
-  send_info "Date : " "${BUILD_DAY}"
+  cat README | sed s/GLIBCVER/${GLIBCVERSION}/g | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL}/clang.tar.zst | cut -f1)/g > README.md
+  echo "https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
   send_info "Action : " "Release into GitHub . . ."
   send_info "Clang Version : " "${CLANG_VERSION}"
   git add . && git commit --allow-empty -sm "${MESSAGE}"
