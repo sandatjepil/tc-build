@@ -12,12 +12,13 @@ profile_task:
   name: Build LLVM (profile)
   timeout_in: 120m
   script:
-    - ./build.sh release
-  profdata_cache:
+    - ./build.sh msg release
+  build_cache:
     folders: 
       - build/llvm/bootstrap
       - build/llvm/instrumented
       - src/llvm-project
+      - install
     fingerprint_key: $CIRRUS_BUILD_ID
 
 final_task:
@@ -25,11 +26,45 @@ final_task:
     - 'Build LLVM (profile)'
   name: Build LLVM (final)
   timeout_in: 120m
-  profdata_cache:
+  build_cache:
     folders:
       - build/llvm/bootstrap
       - build/llvm/instrumented
       - src/llvm-project
+      - install
+    reupload_on_changes: true
     fingerprint_key: $CIRRUS_BUILD_ID
   script:
     - ./build.sh release final
+    
+binutils_task:
+  depends_on:
+    - 'Build LLVM (final)'
+  name: Build Binutils
+  timeout_in: 120m
+  build_cache:
+    folders:
+      - build/llvm/bootstrap
+      - build/llvm/instrumented
+      - src/llvm-project
+      - install
+    reupload_on_changes: true
+    fingerprint_key: $CIRRUS_BUILD_ID
+  script:
+    - ./build.sh binut
+    
+push_task:
+  depends_on:
+    - 'Build Binutils'
+  name: Pushing Builds
+  timeout_in: 120m
+  build_cache:
+    folders:
+      - build/llvm/bootstrap
+      - build/llvm/instrumented
+      - src/llvm-project
+      - install
+    reupload_on_changes: false
+    fingerprint_key: $CIRRUS_BUILD_ID
+  script:
+    - ./build.sh push
