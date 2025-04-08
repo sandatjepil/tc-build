@@ -32,39 +32,7 @@ final_task:
       - build/llvm/instrumented
       - src/llvm-project
       - install
-    reupload_on_changes: true
-    fingerprint_key: $CIRRUS_BUILD_ID
-  script:
-    - ./build.sh release final
-    
-binutils_task:
-  depends_on:
-    - 'Build LLVM (final)'
-  name: Build Binutils
-  timeout_in: 120m
-  build_cache:
-    folders:
-      - build/llvm/bootstrap
-      - build/llvm/instrumented
-      - src/llvm-project
-      - install
-    reupload_on_changes: true
-    fingerprint_key: $CIRRUS_BUILD_ID
-  script:
-    - ./build.sh binut
-    
-push_task:
-  depends_on:
-    - 'Build Binutils'
-  name: Pushing Builds
-  timeout_in: 120m
-  build_cache:
-    folders:
-      - build/llvm/bootstrap
-      - build/llvm/instrumented
-      - src/llvm-project
-      - install
     reupload_on_changes: false
     fingerprint_key: $CIRRUS_BUILD_ID
   script:
-    - ./build.sh push
+    - ./build.sh release final binut push

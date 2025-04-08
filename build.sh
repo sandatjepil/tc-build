@@ -21,7 +21,7 @@ export CUSTOM_FLAGS="
   CMAKE_STATIC_LINKER_FLAGS='-Wl,-O3,--lto-O3,--lto-CGO3,--gc-sections,--strip-debug'
   "
 
-mkdir -p "${INSTALL_DIR}"
+[ -d "${INSTALL_DIR}" ] || mkdir -p "${INSTALL_DIR}"
 
 NOTIFY=false
 FINAL=false RELEASE=false
@@ -142,11 +142,7 @@ git_release() {
   git config --global user.email github-actions[bot]@users.noreply.github.com
   git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/LLVM-stable.git clang -b main
   cd clang
-  cat README |
-    sed s/GLIBC_VER/${GLIBC_VERSION}/g |
-    sed s/LLVM_VERSION/${CLANG_VERSION}/g |
-    sed s/SIZE/$(du -m ${INSTALL_DIR}/clang.tar.zst | cut -f1)/g |
-    sed s/BINUTILS_VER/${BINUT_VERSION} > README.md
+  cat README | sed s/GLIBC_VER/${GLIBC_VERSION}/g | sed s/LLVM_VERSION/${CLANG_VERSION}/g | sed s/SIZE/$(du -m ${INSTALL_DIR}/clang.tar.zst | cut -f1)/g | sed s/BINUTILS_VER/${BINUT_VERSION}/g > README.md
   echo "https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
   send_info "Action : " "Release into GitHub . . ."
   send_info "Clang Version : " "${CLANG_VERSION}"
