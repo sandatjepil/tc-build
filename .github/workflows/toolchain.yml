@@ -1,0 +1,21 @@
+name: Toolchain Builder
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu:22.04
+    environment: Actions
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: bash ci.sh deps
+    - name: Deploy builder
+      env:
+          MYUSERNAME: ${{ secrets.MYUSERNAME }}
+          MYEMAIL: ${{ secrets.MYEMAIL }}
+          BRANCH: ${{ secrets.BRANCH }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT }}
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+      run: bash build.sh
