@@ -32,7 +32,14 @@ class LLVMBuilder(Builder):
         self.build_targets = ['all']
         self.ccache = False
         self.check_targets = []
-        self.cmake_defines = {}
+        self.cmake_defines = {
+            # Reduce dynamic dependencies
+            'LLVM_ENABLE_LIBXML2': 'OFF',
+            # While this option reduces build resources and disk space, it
+            # increases start up time for the tools dynamically linked against
+            # it and limits optimization opportunities for LTO, PGO, and BOLT.
+            'LLVM_LINK_LLVM_DYLIB': 'OFF',
+        }
         self.install_targets = []
         self.llvm_major_version = 0
         self.tools = None
@@ -397,9 +404,6 @@ class LLVMSlimBuilder(LLVMBuilder):
     def configure(self):
         # yapf: disable
         slim_clang_defines = {
-            # Objective-C Automatic Reference Counting (we don't use Objective-C)
-            # https://clang.llvm.org/docs/AutomaticReferenceCounting.html
-            'CLANG_ENABLE_ARCMT': 'OFF',
             # We don't (currently) use the static analyzer and it saves cycles
             # according to Chromium OS:
             # https://crrev.com/44702077cc9b5185fc21e99485ee4f0507722f82
@@ -408,6 +412,16 @@ class LLVMSlimBuilder(LLVMBuilder):
             # https://crbug.com/917404
             'CLANG_PLUGIN_SUPPORT': 'OFF',
         }
+
+        # Objective-C Automatic Reference Counting (we don't use Objective-C)
+        # https://clang.llvm.org/docs/AutomaticReferenceCounting.html
+        # Disable this option only if it exists to prevent CMake warnings.
+        # CLANG_ENABLE_ARCMT was deprecated in favor of CLANG_ENABLE_OBJC_REWRITER,
+        # which is disabled by default.
+        # https://github.com/llvm/llvm-project/commit/c4a019747c98ad9326a675d3cb5a70311ba170a2
+        arcmt_cmakelists = Path(self.folders.source, 'clang/lib/ARCMigrate/CMakeLists.txt')
+        if arcmt_cmakelists.exists():
+            slim_clang_defines['CLANG_ENABLE_ARCMT'] = 'OFF'
 
         llvm_build_runtime = self.cmake_defines.get('LLVM_BUILD_RUNTIME', 'ON') == 'ON'
         build_compiler_rt = self.project_is_enabled('compiler-rt') and llvm_build_runtime

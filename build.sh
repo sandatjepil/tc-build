@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export LLVM_NAME="Kaleidoscope (+PGO, +ThinLTO, +Polly)"
+export LLVM_NAME="Kaleidoscope"
 export STABLE_TAG="main" # Bleeding Edge Build
 export HOME_DIR="$(pwd)"
 export INSTALL_DIR="${HOME_DIR}/install"
