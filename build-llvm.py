@@ -429,7 +429,7 @@ else:
 # Validate and prepare Linux source if doing BOLT or PGO with kernel benchmarks
 # Check for issues early, as these technologies are time consuming, so a user
 # might step away from the build once it looks like it has started
-if args.bolt or (args.pgo and [x for x in args.pgo if 'kernel' in x]):
+if not args.final and (args.bolt or (args.pgo and [x for x in args.pgo if 'kernel' in x])):
     lsm = LinuxSourceManager()
     if args.linux_folder:
         if not (linux_folder := Path(args.linux_folder).resolve()).exists():
@@ -537,7 +537,7 @@ if args.defines:
     common_cmake_defines.update(defines)
 
 # Build bootstrap compiler if user did not request a single stage build
-if (use_bootstrap := not args.build_stage1_only):
+if (use_bootstrap := not args.build_stage1_only) and not args.final:
     tc_build.utils.print_header('Building LLVM (bootstrap)')
 
     bootstrap = LLVMBootstrapBuilder()
@@ -694,7 +694,8 @@ if args.final:
         final.cmake_defines['LLVM_PROFDATA_FILE'] = Path(instrumented.folders.build, 'profdata.prof')
 
     if use_bootstrap:
-        final.tools = StageTools(Path(bootstrap.folders.build, 'bin'))
+        final.folders.tools = Path(build_folder, 'bootstrap')
+        final.tools = StageTools(Path(final.folders.tools, 'bin'))
     else:
         # If we skipped bootstrapping, we need to check the dependencies now
         # and pass along certain user options

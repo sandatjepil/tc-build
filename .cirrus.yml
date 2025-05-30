@@ -1,22 +1,25 @@
 env:
-  - GITHUB_TOKEN: "ENCRYPTED[b3b1b397903f8a0ef6c72e880fd2a8e3693c5ebd31d6564d024b79972408fbb27bb7fb6906336c95e2eaecf90ccbee6d]"
+  - GITHUB_TOKEN: "ENCRYPTED[920f80df62bb50237786e0e55621aa9e5f32c4ec8d2ffe85913ccd46102b39af699391c17a309821b90d8762cf3eddbd]"
   - TELEGRAM_TOKEN: "ENCRYPTED[3d936dc78c3e52b71a6d91af2bc24b47d99312130e9b6a5318bb2fc68dd871d91ec3e09b8507e643e641ef2afec83046]"
   - TELEGRAM_CHAT: "ENCRYPTED[2f5897736e9f36678e18790f91c9d2775c6ea5851fc64016858ff87a976995701a6856bdac78dc488bdc8260b53df507]"
+  - CIRRUS_CLONE_DEPTH: 1
 
 container:
-  image: ghcr.io/neutron-projects/docker-image:arch
+  image: sandatjepil/build:toolchain
   cpu: 8
-  memory: 32G
+  memory: 16G
 
 profile_task:
   name: Build LLVM (profile)
   timeout_in: 120m
   script:
-    - ./build.sh release
-    - find build/llvm/instrumented -type f ! -name 'profdata.prof' -delete
-  profdata_cache:
-    folder: build/llvm/instrumented
-    folder: src/llvm-project
+    - ./build.sh msg release
+  build_cache:
+    folders: 
+      - build/llvm/bootstrap
+      - build/llvm/instrumented
+      - src/llvm-project
+      - install
     fingerprint_key: $CIRRUS_BUILD_ID
 
 final_task:
@@ -24,9 +27,13 @@ final_task:
     - 'Build LLVM (profile)'
   name: Build LLVM (final)
   timeout_in: 120m
-  profdata_cache:
-    folder: build/llvm/instrumented
-    folder: src/llvm-project
+  build_cache:
+    folders:
+      - build/llvm/bootstrap
+      - build/llvm/instrumented
+      - src/llvm-project
+      - install
+    reupload_on_changes: false
     fingerprint_key: $CIRRUS_BUILD_ID
   script:
-    - ./build.sh release final
+    - ./build.sh release final binut push
