@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 export LLVM_NAME="Kaleidoscope"
-export STABLE_TAG="llvmorg-20.1.5"
+export STABLE_TAG="llvmorg-20.1.7"
 export HOME_DIR="$(pwd)"
 export INSTALL_DIR="${HOME_DIR}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
@@ -9,7 +9,6 @@ export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
 export BUILD_TAG="$(date "+%Y%m%d-%H%M-%Z")"
 export NPROC=8
 export CUSTOM_FLAGS="
-  LLVM_PARALLEL_TABLEGEN_JOBS=${NPROC}
   LLVM_PARALLEL_COMPILE_JOBS=${NPROC}
   LLVM_PARALLEL_LINK_JOBS=${NPROC}
   LLVM_OPTIMIZED_TABLEGEN=ON
@@ -131,14 +130,14 @@ git_release() {
   cd ..
   git config --global user.name github-actions[bot]
   git config --global user.email github-actions[bot]@users.noreply.github.com
-  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/LLVM-weekly.git clang -b main
+  git clone --depth 1 https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/LLVM-stable.git clang
   cd clang
   sed -e "s/GLIBC_VER/${GLIBC_VERSION}/" \
     -e "s/LLVM_VERSION/${CLANG_VERSION}/" \
     -e "s/SIZE/${TAR_SIZE}/" \
     -e "s/BINUTILS_VER/${BINUT_VERSION}/" \
     README > README.md
-  echo "https://github.com/PurrrsLitterbox/LLVM-weekly/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
+  echo "https://github.com/PurrrsLitterbox/LLVM-stable/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
   send_info "Action : " "Release into GitHub . . ."
   send_info "Clang Version : " "${CLANG_VERSION}"
   git add . && git commit --allow-empty -sm "${MESSAGE}"
@@ -146,7 +145,7 @@ git_release() {
   cp ${INSTALL_DIR}/clang.tar.zst .
   hub release create -a clang.tar.zst -m "${MESSAGE}
 
-$(cat README.md)" "${BUILD_TAG}"
+$(cat README.md | tail -n 18)" "${BUILD_TAG}"
   send_info "Action : " "Toolchain released ! ! !"
   cd ..
 }
