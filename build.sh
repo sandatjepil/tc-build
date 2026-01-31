@@ -1,12 +1,39 @@
 #!/usr/bin/env bash
 export LLVM_NAME="Kaleidoscope"
-export STABLE_TAG="main" # Bleeding Edge Build
+case "$(git rev-parse --abbrev-ref HEAD)" in
+    main)
+        export STABLE_TAG="main" # Bleeding Edge Build
+        export BUILD_DATE="$(date "+%Y%m%d")"
+        export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
+        export BUILD_TAG="$(date "+%Y%m%d-%H%M-%Z")"
+        export PUSH_REPO="LLVM-weekly"
+        ;;
+    stable)
+        export STABLE_TAG="$(git ls-remote --tags https://github.com/llvm/llvm-project.git | grep -oP "llvmorg-\d+\.\d+\.\d+(-\w+)?" | sort -V | tail -n 1)"
+        # Checks if there are stable non rc tag available
+        if [[ "$STABLE_TAG" =~ rc ]]
+        then
+            norctag="$(git ls-remote --tags https://github.com/llvm/llvm-project.git | grep -v rc | grep -oP "llvmorg-\d+\.\d+\.\d+" | sort -V | tail -n 1)"
+            if [[ "$(echo $STABLE_TAG | grep -oP "llvmorg-\d+\.\d+\.\d+")" == "$norctag" ]]
+            then
+                export STABLE_TAG="$norctag"
+                unset norctag
+            fi
+        fi
+        export BUILD_DATE="$(date "+%Y%m%d")"
+        export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
+        export BUILD_TAG="$STABLE_TAG"
+        export PUSH_REPO="LLVM-stable"
+        CURRENT_TAG=$(git ls-remote --tags https://github.com/PurrrsLitterbox/LLVM-stable.git | grep -oP "llvmorg-[0-9]+\.[0-9]+\.[0-9]+(-\w+)?" | sort -V | tail -1)
+        if [[ "$CURRENT_TAG" == "$STABLE_TAG" ]]; then
+        	echo "Current tag: $CURRENT_TAG, Already newest version, cancelling..."
+        	exit 1
+        fi
+        ;;
+esac
 export HOME_DIR="$(pwd)"
 export INSTALL_DIR="${HOME_DIR}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
-export BUILD_DATE="$(date "+%Y%m%d")"
-export BUILD_DAY="$(date "+%d %B %Y, %H:%M %Z")"
-export BUILD_TAG="$(date "+%Y%m%d-%H%M-%Z")"
 export NPROC=8
 export CUSTOM_FLAGS="
   LLVM_PARALLEL_TABLEGEN_JOBS=${NPROC}
@@ -131,14 +158,14 @@ git_release() {
   cd ..
   git config --global user.name github-actions[bot]
   git config --global user.email github-actions[bot]@users.noreply.github.com
-  git clone https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/LLVM-weekly.git clang -b main
+  git clone --depth 1 https://sandatjepil:${GITHUB_TOKEN}@github.com/PurrrsLitterbox/${PUSH_REPO}.git clang
   cd clang
   sed -e "s/GLIBC_VER/${GLIBC_VERSION}/" \
     -e "s/LLVM_VERSION/${CLANG_VERSION}/" \
     -e "s/SIZE/${TAR_SIZE}/" \
     -e "s/BINUTILS_VER/${BINUT_VERSION}/" \
     README > README.md
-  echo "https://github.com/PurrrsLitterbox/LLVM-weekly/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
+  echo "https://github.com/PurrrsLitterbox/${PUSH_REPO}/releases/download/${BUILD_TAG}/clang.tar.zst" > latestlink.txt
   send_info "Action : " "Release into GitHub . . ."
   send_info "Clang Version : " "${CLANG_VERSION}"
   git add . && git commit --allow-empty -sm "${MESSAGE}"
@@ -146,7 +173,7 @@ git_release() {
   cp ${INSTALL_DIR}/clang.tar.zst .
   hub release create -a clang.tar.zst -m "${MESSAGE}
 
-$(cat README.md)" "${BUILD_TAG}"
+$(cat README.md | tail -n 18)" "${BUILD_TAG}"
   send_info "Action : " "Toolchain released ! ! !"
   cd ..
 }
