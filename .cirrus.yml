@@ -5,8 +5,9 @@ env:
   - CIRRUS_CLONE_DEPTH: 1
 
 container:
-  image: sandatjepil/build:toolchain
+  image: sandatjepil/build:jammy
   cpu: 8
+  greedy: true
   memory: 16G
 
 profile_task:

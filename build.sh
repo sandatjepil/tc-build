@@ -34,9 +34,8 @@ esac
 export HOME_DIR="$(pwd)"
 export INSTALL_DIR="${HOME_DIR}/install"
 export CHAT_ID="$TELEGRAM_CHAT"
-export NPROC=8
+export NPROC=$(nproc --all)
 export CUSTOM_FLAGS="
-  LLVM_PARALLEL_TABLEGEN_JOBS=${NPROC}
   LLVM_PARALLEL_COMPILE_JOBS=${NPROC}
   LLVM_PARALLEL_LINK_JOBS=${NPROC}
   LLVM_OPTIMIZED_TABLEGEN=ON
@@ -147,10 +146,20 @@ strip_binaries() {
 }
 
 git_release() {
-  CLANG_VERSION="$(${INSTALL_DIR}/bin/clang --version | grep -oP '\d+\.\d+(\.\w+)?' | head -n1)"
+  CLANG_VERSION="$(${INSTALL_DIR}/bin/clang --version | grep -oP '\d+\.\d+\.\w+(-\w+)?' | head -n1)"
   GLIBC_VERSION="$(ldd --version | grep -oP '\d+\.\d+(\.\d+)?' | head -n1)"
   BINUT_VERSION="$($(ls ${INSTALL_DIR}/bin/*objdump 2>/dev/null | head -n1) --version | grep -oP '\d+\.\d+(\.\d+)?' | head -n1)"
-  MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
+  case "$(git -C ${HOME_DIR} rev-parse --abbrev-ref HEAD)" in
+    main)
+      MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
+      ;;
+    stable)
+      MESSAGE="Kaleidoscope clang version ${CLANG_VERSION}"
+      ;;
+    *)
+      MESSAGE="Clang: ${CLANG_VERSION}-${BUILD_DATE}"
+      ;;
+  esac
   cd ${INSTALL_DIR}
   # tar -I"${INSTALL_DIR}/.zstd/bin/zstd --ultra -22 -T0" -cf clang.tar.zst *
   tar -I "zstd --ultra -22 -T0" -cf clang.tar.zst *
